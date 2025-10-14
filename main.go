@@ -20,9 +20,9 @@ func main() {
 		fileServerHits: atomic.Int32{},
 	}
 	serveMux.Handle("/app/", apiCfg.middlewareMetricsInc(fileHandler))
-	serveMux.HandleFunc("/healthz", handleReadiness)
-	serveMux.HandleFunc("/metrics", apiCfg.handleMetrics)
-	serveMux.HandleFunc("/reset", apiCfg.handleReset)
+	serveMux.HandleFunc("GET /healthz", handleReadiness)
+	serveMux.HandleFunc("GET /metrics", apiCfg.handleMetrics)
+	serveMux.HandleFunc("POST /reset", apiCfg.handleReset)
 
 	server := &http.Server{
 		Addr:    ":" + port,
