@@ -103,3 +103,30 @@ func (cfg *apiConfig) handleGetChirps(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, chirps)
 }
+
+func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Chirp
+	}
+	pathValue := r.PathValue("chirpID")
+	id, err := uuid.Parse(pathValue)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "No valid uuid given", err)
+		return
+	}
+	chirp, err := cfg.db.GetChirp(r.Context(), id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Coudn't get chirp", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{
+		Chirp: Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserId:    chirp.UserID,
+		},
+	})
+}
