@@ -153,3 +153,15 @@ func (cfg *apiConfig) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		Token: accessToken,
 	})
 }
+
+func (cfg *apiConfig) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find refresh token", err)
+		return
+	}
+
+	cfg.db.RevokeRefreshToken(r.Context(), token)
+
+	w.WriteHeader(http.StatusNoContent)
+}
