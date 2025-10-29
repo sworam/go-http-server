@@ -17,4 +17,6 @@ WHERE email = $1;
 SELECT * FROM users
 INNER JOIN refresh_tokens
 ON users.id = refresh_tokens.user_id
-WHERE refresh_tokens.token = $1 AND refresh_tokens.expires_at < NOW();
+WHERE refresh_tokens.token = $1 
+AND revoked_at IS NULL
+AND refresh_tokens.expires_at > NOW();

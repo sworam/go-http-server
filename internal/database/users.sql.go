@@ -65,7 +65,9 @@ const getUserFromRefreshToken = `-- name: GetUserFromRefreshToken :one
 SELECT id, users.created_at, users.updated_at, email, hashed_password, token, refresh_tokens.created_at, refresh_tokens.updated_at, expires_at, revoked_at, user_id FROM users
 INNER JOIN refresh_tokens
 ON users.id = refresh_tokens.user_id
-WHERE refresh_tokens.token = $1 AND refresh_tokens.expires_at < NOW()
+WHERE refresh_tokens.token = $1 
+AND revoked_at IS NULL
+AND refresh_tokens.expires_at > NOW()
 `
 
 type GetUserFromRefreshTokenRow struct {
