@@ -142,3 +142,19 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 }
+
+func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	pathValue := r.PathValue("chirpID")
+	id, err := uuid.Parse(pathValue)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "No valid uuid given", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirp(r.Context(), id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Coudn't get chirp", err)
+		return
+	}
+
+}
