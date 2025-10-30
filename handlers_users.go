@@ -59,7 +59,7 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
@@ -67,8 +67,6 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	type response struct {
 		User
-		Token        string `json:"token"`
-		RefreshToken string `json:"refresh_token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -79,36 +77,32 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.db.GetUser(r.Context(), params.Email)
+	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", nil)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
 		return
 	}
 
-	match, err := auth.CheckPassword(params.Password, user.HashedPassword)
-	if err != nil || !match {
-		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", nil)
-		return
-	}
-
-	expirationTime := time.Hour
-	accessToken, err := auth.MakeJWT(
-		user.ID,
-		cfg.secret,
-		expirationTime,
-	)
+	userID, err := auth.ValidateJWT(token, cfg.secret)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
 		return
 	}
 
-	refreshToken := auth.MakeRefreshToken()
-	refreshExpirationTime := time.Now().UTC().Add(time.Hour * 24 * 30)
-	cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
-		Token:     refreshToken,
-		ExpiresAt: refreshExpirationTime,
-		UserID:    user.ID,
+	user, err := cfg.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+		ID:             userID,
 	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update user", err)
+		return
+	}
 
 	respondWithJSON(w, http.StatusOK, response{
 		User: User{
@@ -117,51 +111,5 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: user.UpdatedAt,
 			Email:     user.Email,
 		},
-		Token:        accessToken,
-		RefreshToken: refreshToken,
 	})
-}
-
-func (cfg *apiConfig) handleRefresh(w http.ResponseWriter, r *http.Request) {
-	type response struct {
-		Token string `json:"token"`
-	}
-	token, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find refresh token", err)
-		return
-	}
-
-	user, err := cfg.db.GetUserFromRefreshToken(r.Context(), token)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "No valid refresh token found", err)
-		return
-	}
-
-	expirationTime := time.Hour
-	accessToken, err := auth.MakeJWT(
-		user.ID,
-		cfg.secret,
-		expirationTime,
-	)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT", err)
-		return
-	}
-
-	respondWithJSON(w, http.StatusOK, response{
-		Token: accessToken,
-	})
-}
-
-func (cfg *apiConfig) handleRevoke(w http.ResponseWriter, r *http.Request) {
-	token, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find refresh token", err)
-		return
-	}
-
-	cfg.db.RevokeRefreshToken(r.Context(), token)
-
-	w.WriteHeader(http.StatusNoContent)
 }
